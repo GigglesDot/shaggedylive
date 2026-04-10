@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>shaggedy</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0c0c0f;
+      --surface:   #141418;
+      --border:    rgba(255,255,255,0.07);
+      --purple:    #9147ff;
+      --text:      #f0eef8;
+      --muted:      rgba(240,238,248,0.45);
+      --live-red:  #ff4545;
+      --grass:     #4ade80;
+      --grass-dark:#22c55e;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding-bottom: 60px;
+      position: relative;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 999;
+      opacity: 0.03;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size: 180px;
+    }
+
+    .glow {
+      position: fixed;
+      top: -200px; left: 50%;
+      transform: translateX(-50%);
+      width: 700px; height: 500px;
+      background: radial-gradient(ellipse, rgba(145,71,255,0.12) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    /* ── Debug panel ── */
+    .debug-panel {
+      display: none;
+      position: fixed;
+      top: 12px; right: 12px;
+      z-index: 200;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 6px;
+    }
+    .debug-panel.visible { display: flex; }
+    .debug-label {
+      font-size: 0.6rem;
+      letter-spacing: 0.12em;
+      color: rgba(255,255,255,0.3);
+      text-transform: uppercase;
+    }
+    .debug-btns { display: flex; gap: 6px; }
+    .debug-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.7rem;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      transition: all 0.2s;
+    }
+    .debug-btn:hover { border-color: var(--purple); color: var(--text); }
+    .debug-btn.active { border-color: var(--live-red); color: var(--live-red); background: rgba(255,69,69,0.1); }
+
+    /* ── Profile ── */
+    .profile {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 48px;
+      padding-bottom: 28px;
+      animation: fadeUp 0.6s ease both;
+    }
+
+    .avatar-ring {
+      width: 88px; height: 88px;
+      border-radius: 50%;
+      padding: 3px;
+      background: linear-gradient(135deg, var(--purple), #00f5d4);
+      margin-bottom: 14px;
+      box-shadow: 0 0 28px rgba(145,71,255,0.35);
+      transition: all 0.5s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .avatar-ring.live {
+      background: linear-gradient(135deg, var(--live-red), #ff1a1a);
+      box-shadow: 0 0 40px rgba(255,69,69,0.8), 0 0 80px rgba(255,69,69,0.4);
+      animation: livePulse 2s ease-in-out infinite;
+    }
+    @keyframes livePulse {
+      0%,100% { box-shadow: 0 0 40px rgba(255,69,69,0.8), 0 0 80px rgba(255,69,69,0.4); }
+      50%      { box-shadow: 0 0 60px rgba(255,69,69,1),   0 0 100px rgba(255,69,69,0.6); }
+    }
+    .avatar-ring img {
+      width:100%; height:100%;
+      border-radius:50%; object-fit:cover;
+      display:block; transition:opacity 0.3s;
+    }
+    .avatar-ring img.loading { opacity:0; }
+    .avatar-ring img.loaded  { opacity:1; }
+    .avatar-fallback {
+      width:100%; height:100%;
+      border-radius:50%;
+      background: linear-gradient(135deg,#1a1a2e,#2d1b69);
+      display:flex; align-items:center; justify-content:center;
+      font-family:'Bebas Neue',sans-serif; font-size:2rem; color:var(--purple);
+      position:absolute; top:0; left:0;
+      transition: color 0.5s, opacity 0.3s;
+    }
+    .avatar-fallback.hidden { opacity:0; pointer-events:none; }
+
+    .profile h1 { font-family:'Bebas Neue',sans-serif; font-size:2.2rem; letter-spacing:0.06em; margin-bottom:6px; }
+    .profile p  { font-size:0.88rem; color:var(--muted); text-align:center; max-width:320px; line-height:1.5; }
+
+    .live-badge {
+      display:none; align-items:center; gap:6px;
+      margin-top:8px; padding:4px 12px;
+      background:rgba(255,69,69,0.15); border:1px solid rgba(255,69,69,0.3);
+      border-radius:20px; font-size:0.75rem; font-weight:500;
+      color:var(--live-red); text-transform:uppercase; letter-spacing:0.1em;
+    }
+    .live-badge.visible { display:flex; animation:fadeUp 0.4s ease; }
+    .live-badge .dot {
+      width:6px; height:6px; border-radius:50%;
+      background:var(--live-red); box-shadow:0 0 8px var(--live-red);
+      animation:pulse 1.4s ease-in-out infinite;
+    }
+
+    /* ── Embed ── */
+    .embed-section { margin-bottom:28px; animation:fadeUp 0.6s 0.1s ease both; }
+    .embed-label {
+      display:flex; align-items:center; gap:8px;
+      font-size:0.72rem; font-weight:500; letter-spacing:0.14em;
+      text-transform:uppercase; color:var(--muted); margin-bottom:10px;
+    }
+    .embed-label .dot {
+      width:7px; height:7px; border-radius:50%;
+      background:#ff4545; box-shadow:0 0 8px #ff4545;
+      animation:pulse 1.4s ease-in-out infinite;
+    }
+    .embed-box {
+      border-radius:12px; overflow:hidden;
+      border:1px solid var(--border); background:#000;
+      box-shadow:0 8px 40px rgba(0,0,0,0.5),0 0 0 1px rgba(145,71,255,0.1);
+      position:relative; padding-top:56.25%;
+    }
+    .embed-box iframe { position:absolute; inset:0; width:100%; height:100%; border:none; }
+
+    /* ── Links ── */
+    .links-section { display:flex; flex-direction:column; gap:12px; }
+    .link-card {
+      display:flex; align-items:center; gap:16px;
+      padding:16px 20px; background:var(--surface);
+      border:1px solid var(--border); border-radius:14px;
+      text-decoration:none; color:var(--text);
+      transition:transform 0.18s,border-color 0.18s,box-shadow 0.18s;
+      animation:fadeUp 0.5s ease both;
+    }
+    .link-card.twitch  { --c:#9147ff; }
+    .link-card.youtube { --c:#ff0000; }
+    .link-card.insta   { --c:#e1306c; }
+    .link-card.discord { --c:#5865f2; }
+    .link-card.tiktok  { --c:#00f2ea; }
+    .link-card.twitter { --c:#1d9bf0; }
+    .link-card:hover {
+      transform:translateY(-2px);
+      border-color:var(--c);
+      box-shadow:0 8px 32px rgba(0,0,0,0.4),0 0 0 1px var(--c),0 0 20px color-mix(in srgb,var(--c) 20%,transparent);
+    }
+    .icon-wrap {
+      width:44px; height:44px; border-radius:10px;
+      display:flex; align-items:center; justify-content:center; flex-shrink:0;
+      background:color-mix(in srgb,var(--c) 15%,transparent);
+      transition:background 0.2s;
+    }
+    .link-card:hover .icon-wrap { background:color-mix(in srgb,var(--c) 25%,transparent); }
+    .icon-wrap svg { width:22px; height:22px; fill:var(--c); }
+    .link-text { flex:1; }
+    .link-name   { font-weight:500; font-size:0.97rem; display:block; margin-bottom:2px; }
+    .link-handle { font-size:0.78rem; color:var(--muted); }
+    .link-arrow  { color:var(--muted); font-size:1.1rem; transition:transform 0.18s,color 0.18s; }
+    .link-card:hover .link-arrow { transform:translateX(3px); color:var(--c); }
+    .link-card:nth-child(1){animation-delay:0.15s}
+    .link-card:nth-child(2){animation-delay:0.2s}
+    .link-card:nth-child(3){animation-delay:0.25s}
+    .link-card:nth-child(4){animation-delay:0.3s}
+    .link-card:nth-child(5){animation-delay:0.35s}
+    .link-card:nth-child(6){animation-delay:0.4s}
+
+    footer { text-align:center; margin-top:48px; margin-bottom:20px; font-size:0.72rem; color:rgba(255,255,255,0.15); letter-spacing:0.08em; }
+
+    @keyframes fadeUp { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes pulse   { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.7)} }
+
+    /* ── Status indicator ── */
+    .status-indicator {
+      position:fixed; bottom:20px; left:10px;
+      background:var(--surface); border:1px solid var(--border);
+      color:var(--muted); padding:6px 10px; border-radius:6px;
+      font-size:0.65rem; display:flex; align-items:center; gap:6px; z-index:100;
+    }
+    .status-dot { width:6px; height:6px; border-radius:50%; background:var(--muted); }
+    .status-dot.checking { background:#ffd700; animation:pulse 1s infinite; }
+    .status-dot.live     { background:var(--live-red); box-shadow:0 0 8px var(--live-red); }
+    .status-dot.offline  { background:var(--purple); }
+    .status-dot.manual   { background:#00f5d4; }
+
+    /* ── Lawn ── */
+    .lawn-hint {
+      position:fixed; bottom:0; left:0; right:0; height:20px;
+      background:linear-gradient(to top,rgba(74,222,128,0.1),transparent);
+      display:flex; align-items:center; justify-content:center;
+      font-size:0.65rem; color:var(--grass);
+      opacity:0; transition:opacity 0.3s; z-index:49; pointer-events:none;
+    }
+    .lawn-hint.visible { opacity:1; }
+
+    .lawn-container {
+      position:fixed; bottom:0; left:0; right:0; height:0;
+      background:linear-gradient(to bottom,#0a150a 0%,#060d06 100%);
+      border-top:1px solid rgba(74,222,128,0.12);
+      overflow:hidden; z-index:50;
+      transition:height 0.3s ease;
+      pointer-events:none;
+    }
+    .lawn-container.active { height:160px; pointer-events:auto; }
+
+    .lawn-instruction {
+      position:absolute; top:7px; left:50%; transform:translateX(-50%);
+      font-size:0.68rem; color:rgba(74,222,128,0.4);
+      pointer-events:none; z-index:10; white-space:nowrap;
+    }
+    .lawn-score {
+      position:absolute; top:7px; right:14px;
+      font-size:0.75rem; color:var(--grass); font-weight:500;
+    }
+
+    .grass-container {
+      position:absolute; bottom:0; left:0; right:0; height:120px;
+      display:flex; align-items:flex-end; justify-content:space-around; padding:0 4px;
+    }
+    .grass-blade {
+      width:3px;
+      background:linear-gradient(to top,#14532d,#4ade80);
+      border-radius:2px 2px 0 0;
+      transform-origin:bottom center;
+      animation:grassSway 2.2s ease-in-out infinite;
+      animation-delay:calc(var(--i)*0.07s);
+      transition:height 0.15s ease, background 0.3s;
+    }
+    .grass-blade.cut {
+      height:5px !important;
+      background:linear-gradient(to top,#052e16,#14532d) !important;
+      animation:none;
+    }
+    @keyframes grassSway {
+      0%,100% { transform:rotate(-3deg); }
+      50%      { transform:rotate(3deg); }
+    }
+
+    .lawnmower {
+      position:absolute; bottom:22px; width:110px; height:90px;
+      display:none; z-index:100; pointer-events:none;
+      transform:translateX(-50%) scaleX(1);
+      transition:transform 0.12s ease;
+      filter:drop-shadow(0 8px 16px rgba(0,0,0,0.7));
+    }
+    .lawnmower.active { display:block; }
+
+    @keyframes wheelSpin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+    @keyframes bladeSpin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+
+    .cut-particle {
+      position:absolute; width:5px; height:7px;
+      background:var(--grass); border-radius:1px 50% 50% 1px;
+      pointer-events:none;
+      animation:particleFly 0.55s ease-out forwards;
+    }
+    @keyframes particleFly {
+      0%  {transform:translate(0,0) rotate(0deg) scale(1);opacity:1}
+      100%{transform:translate(var(--tx),-28px) rotate(var(--tr)) scale(0);opacity:0}
+    }
+  </style>
+</head>
+<body>
+
+<div class="glow"></div>
+
+<div class="debug-panel" id="debugPanel">
+  <div class="debug-label">⚙ Debug Mode</div>
+  <div class="debug-btns">
+    <button class="debug-btn" id="btnForceLive" onclick="debugForce(true)">Force Live</button>
+    <button class="debug-btn" id="btnForceOffline" onclick="debugForce(false)">Force Offline</button>
+    <button class="debug-btn" onclick="debugAuto()">Auto</button>
+  </div>
+</div>
+
+<div class="container">
+  <div class="profile">
+    <div class="avatar-ring" id="avatarRing">
+      <img id="avatarImg" class="loading" alt="Shaggedy"/>
+      <div class="avatar-fallback" id="avatarFallback">S</div>
+    </div>
+    <h1>Shaggedy</h1>
+    <p id="statusText">Checking stream status...</p>
+    <div class="live-badge" id="liveBadge"><span class="dot"></span>LIVE NOW</div>
+  </div>
+
+  <div class="embed-section">
+    <div class="embed-label"><span class="dot"></span><span id="embedText">Loading...</span></div>
+    <div class="embed-box">
+      <iframe id="videoPlayer" src="" allowfullscreen></iframe>
+    </div>
+  </div>
+
+  <div class="links-section">
+    <a href="https://twitch.tv/shaggedy" target="_blank" class="link-card twitch">
+      <div class="icon-wrap"><svg viewBox="0 0 24 24"><path d="M2.149 0L.537 4.119v16.836h5.731V24l4.119-3.045h3.284L20.463 12V0H2.149zm16.716 11.29l-3.284 3.284H12l-2.686 2.686v-2.686H5.731V1.79h13.134v9.5zM16.18 4.773h-1.79v5.373h1.79V4.773zm-4.775 0H9.616v5.373h1.79V4.773z"/></svg></div>
+      <div class="link-text"><span class="link-name">Twitch</span><span class="link-handle">twitch.tv/shaggedy</span></div>
+      <span class="link-arrow">→</span>
+    </a>
+    <a href="https://www.youtube.com/@ShaggedyVods" target="_blank" class="link-card youtube">
+      <div class="icon-wrap"><svg viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg></div>
+      <div class="link-text"><span class="link-name">YouTube</span><span class="link-handle">youtube.com/@shaggedyvods</span></div>
+      <span class="link-arrow">→</span>
+    </a>
+    <a href="https://instagram.com/shaggedy_shag" target="_blank" class="link-card insta">
+      <div class="icon-wrap"><svg viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg></div>
+      <div class="link-text"><span class="link-name">Instagram</span><span class="link-handle">@shaggedy_shag</span></div>
+      <span class="link-arrow">→</span>
+    </a>
+    <a href="https://discord.gg/SZb7mfHXVt" target="_blank" class="link-card discord">
+      <div class="icon-wrap"><svg viewBox="0 0 24 24"><path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028 14.09 14.09 0 001.226-1.994.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg></div>
+      <div class="link-text"><span class="link-name">Discord</span><span class="link-handle">Join the community</span></div>
+      <span class="link-arrow">→</span>
+    </a>
+    <a href="https://tiktok.com/@shaggedy" target="_blank" class="link-card tiktok">
+      <div class="icon-wrap"><svg viewBox="0 0 24 24"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.17 8.17 0 004.77 1.52V6.75a4.85 4.85 0 01-1-.06z"/></svg></div>
+      <div class="link-text"><span class="link-name">TikTok</span><span class="link-handle">@shaggedy</span></div>
+      <span class="link-arrow">→</span>
+    </a>
+  </div>
+  <footer>shaggedy © 2026</footer>
+</div>
+
+<div class="status-indicator">
+  <span class="status-dot checking" id="statusDot"></span>
+  <span id="statusLabel">Checking...</span>
+</div>
+
+<div class="lawn-hint" id="lawnHint">↓ Scroll to mow the lawn ↓</div>
+
+<div class="lawn-container" id="lawnContainer">
+  <div class="lawn-instruction">Move your mouse to mow 🌿</div>
+  <div class="lawn-score" id="lawnScore">Mowed: 0%</div>
+  <div class="grass-container" id="grassContainer"></div>
+  <div class="lawnmower" id="lawnmower">
+    <svg viewBox="0 0 110 90" width="110" height="90">
+      <rect x="14" y="48" width="72" height="24" rx="6" fill="#ef4444"/>
+      <circle cx="23" cy="74" r="12" fill="#111"/>
+      <circle cx="82" cy="74" r="13" fill="#111"/>
+    </svg>
+  </div>
+</div>
+
+<script>
+  const CONFIG = {
+    TWITCH_CHANNEL: 'shaggedy',
+    YOUTUBE_UPLOADS_PLAYLIST: 'UUkGPHKnDIOywkOKnYOFewAQ',
+    CHECK_INTERVAL: 10000,
+    FETCH_TIMEOUT: 5000,
+    AVATAR_URL: 'https://static-cdn.jtvnw.net/jtv_user_pictures/9b683e08-4c8b-4174-b315-d6d4b62cec2f-profile_image-70x70.png'
+  };
+
+  let manualMode = false;
+  let autoCheckInterval = null;
+
+  window.shaggedy = {
+    debug() {
+      document.getElementById('debugPanel').classList.toggle('visible');
+    }
+  };
+
+  function debugForce(live) {
+    manualMode = true;
+    if (autoCheckInterval) clearInterval(autoCheckInterval);
+    setLiveUI(live);
+    document.getElementById('btnForceLive').classList.toggle('active', live);
+    document.getElementById('btnForceOffline').classList.toggle('active', !live);
+  }
+
+  function debugAuto() {
+    manualMode = false;
+    checkStatus();
+    autoCheckInterval = setInterval(checkStatus, CONFIG.CHECK_INTERVAL);
+  }
+
+  function loadAvatar() {
+    const img = document.getElementById('avatarImg');
+    const fb = document.getElementById('avatarFallback');
+    img.src = CONFIG.AVATAR_URL;
+    img.onload = () => { img.classList.add('loaded'); fb.classList.add('hidden'); };
+  }
+
+  async function checkStatus() {
+    if (manualMode) return;
+    try {
+      const r = await fetch(`https://decapi.me/twitch/uptime/${CONFIG.TWITCH_CHANNEL}`);
+      const d = await r.text();
+      setLiveUI(!d.includes("offline"));
+    } catch { setLiveUI(false); }
+  }
+
+  function setLiveUI(live) {
+    const ring = document.getElementById('avatarRing');
+    const badge = document.getElementById('liveBadge');
+    const stText = document.getElementById('statusText');
+    const player = document.getElementById('videoPlayer');
+    const p = window.location.hostname || 'localhost';
+
+    // ACCOUNT BYPASS: Use youtube-nocookie and listType to bypass owner blocks
+    const twitchURL = `https://player.twitch.tv/?channel=${CONFIG.TWITCH_CHANNEL}&parent=${p}&autoplay=true`;
+    const youtubeURL = `https://www.youtube-nocookie.com/embed?listType=playlist&list=${CONFIG.YOUTUBE_UPLOADS_PLAYLIST}`;
+
+    if (live) {
+      ring.classList.add('live');
+      badge.classList.add('visible');
+      stText.textContent = '🔴 Streaming live on Twitch!';
+      if (!player.src.includes('twitch')) player.src = twitchURL;
+    } else {
+      ring.classList.remove('live');
+      badge.classList.remove('visible');
+      stText.textContent = 'Currently offline · Check the latest VOD';
+      if (!player.src.includes('youtube')) player.src = youtubeURL;
+    }
+    updateStatus(live ? 'live' : 'offline', live ? 'Live' : 'Offline');
+  }
+
+  function updateStatus(cls, label) {
+    const dot = document.getElementById('statusDot');
+    dot.className = 'status-dot ' + cls;
+    document.getElementById('statusLabel').textContent = label;
+  }
+
+  // LAWN LOGIC
+  const grassContainer = document.getElementById('grassContainer');
+  const mower = document.getElementById('lawnmower');
+  let mowedCount = 0;
+  const total = 60;
+
+  function initLawn() {
+    for (let i = 0; i < total; i++) {
+      const b = document.createElement('div');
+      b.className = 'grass-blade';
+      b.style.setProperty('--i', i);
+      b.style.height = (40 + Math.random() * 40) + 'px';
+      grassContainer.appendChild(b);
+    }
+  }
+
+  window.addEventListener('mousemove', (e) => {
+    const rect = document.getElementById('lawnContainer').getBoundingClientRect();
+    if (e.clientY > rect.top) {
+      mower.classList.add('active');
+      mower.style.left = e.clientX + 'px';
+      
+      document.querySelectorAll('.grass-blade').forEach(b => {
+        const bRect = b.getBoundingClientRect();
+        if (Math.abs(e.clientX - bRect.left) < 40 && !b.classList.contains('cut')) {
+          b.classList.add('cut');
+          mowedCount++;
+          document.getElementById('lawnScore').innerText = `Mowed: ${Math.round((mowedCount/total)*100)}%`;
+          setTimeout(() => { 
+            b.classList.remove('cut'); 
+            mowedCount--;
+          }, 8000);
+        }
+      });
+    } else {
+      mower.classList.remove('active');
+    }
+  });
+
+  window.onscroll = () => {
+    const atBottom = (window.innerHeight + window.scrollY) >= document.body.offsetHeight - 50;
+    document.getElementById('lawnContainer').classList.toggle('active', atBottom);
+    document.getElementById('lawnHint').classList.toggle('visible', !atBottom);
+  };
+
+  initLawn();
+  loadAvatar();
+  debugAuto();
+</script>
+</body>
+</html>
